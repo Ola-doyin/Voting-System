@@ -93,9 +93,6 @@ This project is a secure, portable, internet-enabled voting system that combines
 
 <br>
 
-## 📜 License
-[MIT License](LICENSE)
-
 
 ## 📷 Demonstrations
 <p align="center">
@@ -107,10 +104,14 @@ This project is a secure, portable, internet-enabled voting system that combines
   <img src="images/Voting_DB.png" alt="Google Spreadsheet Database" width="600">
 </p>
 
+<br>
 
+## 📜 License
+[MIT License](LICENSE)
+
+<br>
 
 ## Built by 
 **Oladoyin Arewa - [GitHub](https://github.com/Ola-doyin)**
 
 Electronic & Electrical Engineer | AI Engineer | Power Systems Researcher
-

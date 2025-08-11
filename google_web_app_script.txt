@@ -1,0 +1,128 @@
+function doGet(e) {
+  if (!e || !e.parameter) {
+    return ContentService.createTextOutput('No parameters found');
+  }
+  return handleRequest(e);
+}
+
+function doPost(e) {
+  if (!e || !e.parameter) {
+    return ContentService.createTextOutput('No parameters found');
+  }
+  return handleRequest(e);
+}
+
+function handleRequest(e) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const profilesSheet = ss.getSheetByName('Profiles');
+  const votesSheet = ss.getSheetByName('Votes');
+
+  const action = e.parameter.action;
+  if (!action) {
+    return ContentService.createTextOutput('Missing action command');
+  }
+
+  if (action === 'enroll') {
+    const id = e.parameter.id;
+    const firstName = e.parameter.first;
+    const lastName = e.parameter.last;
+
+    if (!id || !firstName || !lastName) {
+      return ContentService.createTextOutput('Missing profile');
+    }
+
+    profilesSheet.appendRow([id, firstName, lastName]);
+    const lastRow = profilesSheet.getLastRow();
+    if (lastRow > 1) {
+      profilesSheet.getRange(2, 1, lastRow - 1, 3).sort({ column: 1, ascending: true });
+    }
+    return ContentService.createTextOutput('Profile enrolled');
+  }
+
+  else if (action === 'vote') {
+    const id = e.parameter.id;
+    const pres = e.parameter.pres === '000' ? '' : e.parameter.pres;
+    const gub  = e.parameter.gub  === '000' ? '' : e.parameter.gub;
+    const sen  = e.parameter.sen  === '000' ? '' : e.parameter.sen;
+
+    if (!id) {
+      return ContentService.createTextOutput('Missing ID');
+    }
+
+    const profilesData = profilesSheet.getDataRange().getValues();
+    const found = profilesData.find(row => row[0] == id);
+
+    if (!found) {
+      return ContentService.createTextOutput('Unregistered ID');
+    }
+
+    // Prevent double voting
+    const votesData = votesSheet.getDataRange().getValues();
+    const alreadyVoted = votesData.find(row => row[0] == id);
+    if (alreadyVoted) {
+      return ContentService.createTextOutput('Previously voted');
+    }
+
+    const [_, firstName, lastName] = found;
+    const now = new Date();
+    const date = Utilities.formatDate(now, Session.getScriptTimeZone(), "yyyy-MM-dd");
+    const time = Utilities.formatDate(now, Session.getScriptTimeZone(), "HH:mm:ss");
+
+    votesSheet.appendRow([id, firstName, lastName, pres, gub, sen, date, time]);
+    return ContentService.createTextOutput('Vote logged');
+  }
+
+
+
+
+  else if (action === 'retrieve') {
+    const id = e.parameter.id;
+    if (!id) return ContentService.createTextOutput('Missing ID');
+
+    const profilesData = profilesSheet.getDataRange().getValues();
+    const found = profilesData.find(row => row[0] == id);
+
+    if (!found) return ContentService.createTextOutput('Unregistered ID');
+
+    const [_, firstName, lastName] = found;
+    // const result = {
+    //   id,
+    //   firstName,
+    //   lastName
+    // };
+
+    // return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
+    const resultString = id + "," + firstName + "," + lastName;
+    return ContentService.createTextOutput(resultString).setMimeType(ContentService.MimeType.TEXT);
+  }
+
+  else if (action === 'delete') {
+    const id = e.parameter.id;
+    const firstName = e.parameter.first;
+    const lastName = e.parameter.last;
+
+    if (!id || !firstName || !lastName) {
+      return ContentService.createTextOutput('Missing profile');
+    }
+
+    const profilesData = profilesSheet.getDataRange().getValues();
+
+    for (let i = 1; i < profilesData.length; i++) {
+      if (
+        profilesData[i][0] == id &&
+        profilesData[i][1] == firstName &&
+        profilesData[i][2] == lastName
+      ) {
+        profilesSheet.deleteRow(i + 1); // Account for header
+        return ContentService.createTextOutput('Profile deleted');
+      }
+    }
+
+    return ContentService.createTextOutput('No profile match');
+  }
+
+
+  else {
+    return ContentService.createTextOutput('Invalid action.');
+  }
+}

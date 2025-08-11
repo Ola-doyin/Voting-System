@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Voting System Webserver</title>
+  <style>
+    body { font-family: Arial; text-align: center; background: #f0f0f0; }
+    h2 { margin-top: 10px; }
+    img { border: 2px solid #222; border-radius: 10px; margin-top: 5px; }
+    .btn {
+      padding: 12px 25px;
+      margin: 8px;
+      background: #00aaff;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      font-size: 16px;
+    }
+    .btn:hover { background: #0088cc; cursor: pointer; }
+    input[type="text"], input[type="number"] {
+      padding: 8px;
+      margin: 15px;
+      border-radius: 5px;
+      border: 1px solid #ccc;
+      font-size: 16px;
+      width: 160px;
+    }
+    input.id-box {
+      width: 60px;
+    }
+    .form-row {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      margin-top: 10px;
+      flex-wrap: wrap;
+    }
+    .form-row label {
+      margin: 0 4px;
+      font-weight: bold;
+    }
+    #log {
+      margin-top: 20px;
+      text-align: left;
+      max-width: 600px;
+      margin-left: auto;
+      margin-right: auto;
+      border-top: 1px solid #444;
+      padding-top: 5px;
+      font-family: monospace;
+      color: #333;
+    }
+    .action-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      margin-top: 10px;
+      flex-wrap: wrap;
+    }
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 90px;
+      height: 34px;
+    }
+    .switch input { display: none; }
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: #ccc;
+      transition: .4s;
+      border-radius: 34px;
+    }
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 26px;
+      width: 26px;
+      left: 4px;
+      bottom: 4px;
+      background-color: white;
+      transition: .4s;
+      border-radius: 50%;
+    }
+    input:checked + .slider {
+      background-color: #00aaff;
+    }
+    input:checked + .slider:before {
+      transform: translateX(55px);
+    }
+    .slider:after {
+      content: 'OFF';
+      color: white;
+      position: absolute;
+      transform: translate(-50%, -50%);
+      top: 50%;
+      left: 70%;
+      font-size: 15px;
+    }
+    input:checked + .slider:after {
+      left: 25%;
+      content: 'ON';
+    }
+  </style>
+</head>
+<body>
+  <h2>Voting System Admin Page</h2>
+  <img src="/face_stream" width="480" height="360" />
+
+  <!-- LED Flash Toggle + Mode Toggle + Fingerprint Button -->
+  <div class="action-row">
+    <span style="font-size: 15px;">LED Flash:</span>
+    <label class="switch">
+      <input type="checkbox" id="togLEDFlash" onclick="LEDFlash()">
+      <div class="slider round"></div>
+    </label>
+    <button class="btn" id="modeToggleBtn" onclick="toggleMode()">Delete</button>
+    <button class="btn" id="fingerBtn" onclick="handleFingerprint()">Enrol Fingerprint</button>
+  </div>
+
+  <!-- Voter Profile Form -->
+  <div class="form-row">
+    <label for="voter_id">ID</label>
+    <input type="number" id="voter_id" class="id-box" readonly>
+    <label for="first_name">First Name</label>
+    <input type="text" id="first_name">
+    <label for="last_name">Last Name</label>
+    <input type="text" id="last_name">
+    <button class="btn" id="profileBtn" onclick="handleProfileAction()">Enrol Profile</button>
+  </div>
+
+  <div id="log">Log</div>
+
+  <script>
+    const ws = new WebSocket("ws://" + location.hostname + ":88");
+    let deleteMode = false;
+
+    ws.onopen = () => console.log("✅ WebSocket connected");
+    ws.onclose = () => console.log("❌ WebSocket disconnected");
+
+    ws.onmessage = (event) => {
+      const msg = event.data;
+      logMessage("[ESP] " + msg);
+      if (msg.startsWith("ID:")) {
+        document.getElementById("voter_id").value = msg.split(":")[1].trim();
+      } else if (msg.startsWith("PROFILE:")) {
+        const [fname, lname] = msg.split(":")[1].split("|");
+        document.getElementById("first_name").value = fname.trim();
+        document.getElementById("last_name").value = lname.trim();
+      }
+    };
+
+    function logMessage(msg) {
+      const logDiv = document.getElementById("log");
+      const newLine = document.createElement("div");
+      newLine.textContent = msg;
+      logDiv.appendChild(newLine);
+      while (logDiv.childElementCount > 10) logDiv.removeChild(logDiv.firstChild);
+    }
+
+    function LEDFlash() {
+      const cmd = document.getElementById("togLEDFlash").checked ? "LED_ON" : "LED_OFF";
+      ws.send(cmd);
+      logMessage("[LED] " + cmd);
+    }
+
+    function toggleMode() {
+      deleteMode = !deleteMode;
+      document.getElementById("modeToggleBtn").textContent = deleteMode ? "Enrol" : "Delete";
+      document.getElementById("fingerBtn").textContent = deleteMode ? "Delete Fingerprint" : "Enrol Fingerprint";
+      document.getElementById("profileBtn").textContent = deleteMode ? "Delete Profile" : "Enrol Profile";
+
+      document.getElementById("voter_id").readOnly = !deleteMode;
+      document.getElementById("first_name").readOnly = deleteMode;
+      document.getElementById("last_name").readOnly = deleteMode;
+
+      document.getElementById("first_name").value = "";
+      document.getElementById("last_name").value = "";
+      if (deleteMode) {
+        ws.send("DELETE_FINGER");
+        logMessage("[Mode] DELETE mode enabled");
+      } else {
+        ws.send("ENROL_FINGER");
+        logMessage("[Mode] ENROL mode enabled");
+      }
+    }
+
+    function handleFingerprint() {
+	  if (deleteMode) {
+	    const id = document.getElementById("voter_id").value.trim();
+	    if (!id) {
+	      alert("Please enter ID to delete.");
+	      return;
+	    }
+	    const cmd = `DELETE_FINGER ${id}`;
+	    ws.send(cmd);
+	    logMessage("[Fingerprint] DELETE_FINGER " + id);
+	  } else {
+	    const cmd = "ENROL_FINGER";
+	    ws.send(cmd);
+	    logMessage("[Fingerprint] " + cmd);
+	  }
+	}
+
+
+    function handleProfileAction() {
+      const id = document.getElementById("voter_id").value;
+      const firstName = document.getElementById("first_name").value;
+      const lastName = document.getElementById("last_name").value;
+
+      if (!id) {
+        alert("Please enter Voter ID.");
+        return;
+      }
+
+      if (deleteMode) {
+        ws.send(`DELETE_PROFILE ${id}|${firstName}|${lastName}`);
+        logMessage("[Profile] DELETE_PROFILE " + id);
+      } else {
+        if (!firstName || !lastName) {
+          alert("Please fill in First and Last Name.");
+          return;
+        }
+        ws.send(`ENROL_PROFILE ${id}|${firstName}|${lastName}`);
+        logMessage("[Profile] ENROL_PROFILE " + id);
+      }
+    }
+
+    window.onload = () => {
+      fetch('/id')
+        .then(response => response.text())
+        .then(data => {
+          document.getElementById("voter_id").value = data;
+          document.getElementById("voter_id").readOnly = true;
+          document.getElementById("first_name").readOnly = false;
+          document.getElementById("last_name").readOnly = false;
+          logMessage("[System] Auto-assigned ID: " + data);
+        })
+        .catch(() => logMessage("[System] Failed to load ID"));
+    };
+  </script>
+</body>
+</html>
